@@ -59,12 +59,13 @@ document.getElementById("f").addEventListener("submit", async (e) => {
     });
     const d = await r.json();
     if (!d.ok) throw new Error(d.fehler || "Das hat nicht geklappt.");
-    const ziel = new URL(p.get("redirect_uri"));
-    ziel.searchParams.set("code", d.code);
-    ziel.searchParams.set("state", p.get("state"));
-    // Diagnose: Ziel kurz anzeigen (ohne Code), dann weiterleiten
-    meldung.textContent = "Weiter zu " + ziel.host + ziel.pathname + " (state " + (p.get("state") || "").length + " Zeichen, Code " + d.code.length + " Zeichen) …";
-    setTimeout(() => { location.href = ziel.toString(); }, 4000);
+    // state UNVERÄNDERT zurückgeben (Amazon vergleicht ihn strikt): roh aus der Adresse, ohne Dekodieren/Neu-Kodieren
+    const roh = location.search.slice(1).split("&").find((s) => s.startsWith("state="));
+    if (!roh) throw new Error("state fehlt in der Adresse.");
+    const ru = p.get("redirect_uri");
+    const ziel = ru + (ru.includes("?") ? "&" : "?") + "code=" + encodeURIComponent(d.code) + "&" + roh;
+    meldung.textContent = "Weiter zu Alexa …";
+    location.href = ziel;
   } catch (err) {
     meldung.className = "fehler"; meldung.textContent = err.message; knopf.disabled = false;
   }
