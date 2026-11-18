@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rezepte mit Alexa koppeln</title>
+<style>
+  :root { --bg:#F5E8DA; --card:#FFF8F0; --text:#3B2A1E; --accent:#B5532B; --muted:#7A6454; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#2A1F18; --card:#37291F; --text:#F3E6D8; --accent:#E08A5B; --muted:#BBA592; } }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--text); font:16px/1.5 system-ui, sans-serif; }
+  main { max-width:480px; margin:0 auto; background:var(--card); border-radius:16px; padding:20px; }
+  h1 { font-size:1.3rem; margin:0 0 8px; }
+  ol { padding-left:1.2em; color:var(--muted); }
+  input { width:100%; padding:12px; font:inherit; border:1px solid var(--muted); border-radius:10px; background:transparent; color:var(--text); }
+  button { margin-top:12px; width:100%; padding:14px; font:inherit; font-weight:600; border:0; border-radius:10px; background:var(--accent); color:#fff; }
+  button:disabled { opacity:.5; }
+  #meldung { margin-top:12px; min-height:1.5em; }
+  .fehler { color:#C0392B; }
+  small { color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Rezepte mit Alexa koppeln</h1>
+  <ol>
+    <li>In der Rezepte-App: Einstellungen → Einkaufsliste von außen → Schlüssel kopieren.</li>
+    <li>Hier einfügen und auf „Koppeln“ tippen.</li>
+  </ol>
+  <form id="f" autocomplete="off">
+    <input id="schluessel" placeholder="ek_…" autocapitalize="off" autocorrect="off" spellcheck="false" required>
+    <button id="knopf" type="submit">Koppeln</button>
+  </form>
+  <div id="meldung" role="status"></div>
+  <small>Der Schlüssel erlaubt nur, Artikel auf die Einkaufsliste zu setzen oder sie zu lesen. Ein neuer Schlüssel in der App hebt die Kopplung auf.</small>
+</main>
+<script>
+const FUNKTION = "https://zhaniivohvfqqudopmlk.supabase.co/functions/v1/alexa-konto";
+const p = new URLSearchParams(location.search);
+const meldung = document.getElementById("meldung");
+const knopf = document.getElementById("knopf");
+
+if (!p.get("redirect_uri") || !p.get("state")) {
+  meldung.className = "fehler";
+  meldung.textContent = "Diese Seite bitte über die Alexa-App öffnen (Skill aktivieren → Koppeln).";
+  knopf.disabled = true;
+}
+
+document.getElementById("f").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  knopf.disabled = true; meldung.className = ""; meldung.textContent = "Moment …";
+  try {
+    const r = await fetch(FUNKTION, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        aktion: "code", schluessel: document.getElementById("schluessel").value.trim(),
+        redirect_uri: p.get("redirect_uri"), client_id: p.get("client_id") || "rezepte-alexa",
+      }),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.fehler || "Das hat nicht geklappt.");
+    const ziel = new URL(p.get("redirect_uri"));
+    ziel.searchParams.set("code", d.code);
+    ziel.searchParams.set("state", p.get("state"));
+    location.href = ziel.toString();
+  } catch (err) {
+    meldung.className = "fehler"; meldung.textContent = err.message; knopf.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
